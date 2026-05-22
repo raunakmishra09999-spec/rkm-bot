@@ -1,0 +1,66 @@
+const cron = require('node-cron');
+
+module.exports = {
+    init(client, db, config) {
+        cron.schedule('* * * * *', () => {
+            this.checkAndUpdateChannels(client, db, config);
+        });
+    },
+    
+    checkAndUpdateChannels(client, db, config) {
+        const protectedCategory = client.channels.cache.get(config.channels.protectedCategory);
+        if (!protectedCategory) return;
+        
+        const currentTime = new Date();
+        const currentHour = currentTime.getHours();
+        const currentMinute = currentTime.getMinutes();
+        
+        protectedCategory.children.cache.forEach(channel => {
+            if (!channel.isTextBased()) return;
+            
+            const match = channel.name.match(/(\d{1,2})-(\d{2})(am|pm)-reg-(\d{1,2})-(\d{2})(am|pm)/i);
+            if (!match) return;
+            
+            const openHour = this.parseTimeTo24h(match[1], match[2], match[3]);
+            const openMinute = parseInt(match[2]);
+            
+            const shouldBeOpen = (currentHour > openHour) || 
+                                (currentHour === openHour && currentMinute >= openMinute);
+            
+            this.isRegistrationFull(channel.id, db).then(isFull => {
+                if (shouldBeOpen && !isFull) {
+                    this.unlockChannel(channel);
+                } else if (!shouldBeOpen || isFull) {
+                    this.lockChannel(channel);
+                }
+            });
+        });
+    },
+    
+    async isRegistrationFull(channelId, db) {
+        return new Promise((resolve) => {
+            db.get(`SELECT COUNT(*) as count FROM registrations WHERE channelId = ?`, [channelId], (err, row) => {
+                resolve(row?.count >= 25);
+            });
+        });
+    },
+    
+    parseTimeTo24h(hour, minute, ampm) {
+        let h = parseInt(hour);
+        if (ampm === 'pm' && h !== 12) h += 12;
+        if (ampm === 'am' && h === 12) h = 0;
+        return h;
+    },
+    
+    async lockChannel(channel) {
+        await channel.permissionOverwrites.edit(channel.guild.roles.everyone, {
+            SendMessages: false
+        });
+    },
+    
+    async unlockChannel(channel) {
+        await channel.permissionOverwrites.edit(channel.guild.roles.everyone, {
+            SendMessages: null
+        });
+    }
+};
