@@ -1,0 +1,9 @@
+// This reuses the same logic as T3 registration system
+const registrationSystem = require('./registrationSystem');
+
+module.exports = {
+    async handleT2Registration(message, client, db, config) {
+        // Same as T3 registration but for T2 category
+        await registrationSystem.handleRegistration(message, client, db, config);
+    }
+};
