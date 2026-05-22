@@ -1,0 +1,74 @@
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { createCanvas } = require('canvas');
+
+module.exports = {
+    async generateWeeklyLeaderboard(client, db, config) {
+        const week = this.getWeekNumber(new Date()) - 1;
+        
+        db.all(`SELECT * FROM weekly_scores WHERE week = ? ORDER BY wins DESC, totalScore DESC LIMIT 10`, [week], async (err, teams) => {
+            if (!teams || teams.length === 0) return;
+            
+            const channel = client.channels.cache.get(config.channels.leaderboard);
+            if (!channel) return;
+            
+            const bannerBuffer = await this.createLeaderboardBanner(teams, week);
+            const attachment = new AttachmentBuilder(bannerBuffer, { name: 'leaderboard.png' });
+            
+            let description = '## 🏆 **Weekly Leaderboard - Top 10 Teams** 🏆\n\n';
+            teams.forEach((team, index) => {
+                description += `**#${index + 1}** • **${team.teamName}**\n`;
+                description += `> 👥 Players: ${team.players}\n`;
+                description += `> 🎯 Wins: ${team.wins} | 🥉 Top 3: ${team.top3Count} | ⭐ Score: ${team.totalScore}\n\n`;
+            });
+            
+            const embed = new EmbedBuilder()
+                .setTitle(`📊 **WEEK ${week} LEADERBOARD**`)
+                .setDescription(description)
+                .setColor(0xFFD700)
+                .setImage('attachment://leaderboard.png');
+            
+            await channel.send({ embeds: [embed], files: [attachment] });
+        });
+    },
+    
+    async createLeaderboardBanner(teams, week) {
+        const width = 3840;
+        const height = 2160;
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+        
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, width, height);
+        
+        ctx.font = 'bold 120px "Arial"';
+        ctx.fillStyle = '#FFD700';
+        ctx.textAlign = 'center';
+        ctx.fillText(`WEEK ${week} LEADERBOARD`, width/2, 200);
+        
+        ctx.font = 'bold 50px "Arial"';
+        ctx.fillStyle = '#00FF00';
+        ctx.fillText('RANK', 200, 500);
+        ctx.fillText('TEAM', 500, 500);
+        ctx.fillText('WINS', 2000, 500);
+        ctx.fillText('SCORE', 2800, 500);
+        
+        let y = 650;
+        for (let i = 0; i < teams.length; i++) {
+            ctx.font = '40px "Arial"';
+            ctx.fillStyle = i < 3 ? '#FFD700' : '#ffffff';
+            ctx.fillText(`#${i+1}`, 200, y);
+            ctx.fillText(teams[i].teamName.substring(0, 30), 500, y);
+            ctx.fillText(teams[i].wins.toString(), 2000, y);
+            ctx.fillText(teams[i].totalScore.toString(), 2800, y);
+            y += 120;
+        }
+        
+        return canvas.toBuffer();
+    },
+    
+    getWeekNumber(date) {
+        const startDate = new Date(date.getFullYear(), 0, 1);
+        const days = Math.floor((date - startDate) / (24 * 60 * 60 * 1000));
+        return Math.ceil(days / 7);
+    }
+};
