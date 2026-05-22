@@ -1,0 +1,89 @@
+const cron = require('node-cron');
+const { EmbedBuilder } = require('discord.js');
+
+module.exports = {
+    start(client, config) {
+        cron.schedule('0 0 * * *', () => {
+            this.checkAndSendFestivalBanner(client, config);
+        });
+    },
+    
+    checkAndSendFestivalBanner(client, config) {
+        const today = new Date();
+        const month = today.getMonth() + 1;
+        const day = today.getDate();
+        
+        const festivals = {
+            '1-1': { name: 'New Year', banner: 'https://i.imgur.com/newyear-banner.gif', emoji: '🎆' },
+            '1-14': { name: 'Makar Sankranti', banner: 'https://i.imgur.com/sankranti-banner.gif', emoji: '🪁' },
+            '1-26': { name: 'Republic Day', banner: 'https://i.imgur.com/republic-banner.gif', emoji: '🇮🇳' },
+            '3-8': { name: 'Holi', banner: 'https://i.imgur.com/holi-banner.gif', emoji: '🎨' },
+            '8-15': { name: 'Independence Day', banner: 'https://i.imgur.com/independence-banner.gif', emoji: '🇮🇳' },
+            '10-2': { name: 'Gandhi Jayanti', banner: 'https://i.imgur.com/gandhi-banner.gif', emoji: '🕊️' },
+            '10-24': { name: 'Diwali', banner: 'https://i.imgur.com/diwali-banner.gif', emoji: '🪔' },
+            '12-25': { name: 'Christmas', banner: 'https://i.imgur.com/christmas-banner.gif', emoji: '🎄' }
+        };
+        
+        const key = `${month}-${day}`;
+        const festival = festivals[key];
+        
+        if (festival) {
+            this.sendBanner(client, config, festival);
+        } else {
+            this.sendDailyAnimeBanner(client, config);
+        }
+    },
+    
+    sendBanner(client, config, festival) {
+        const channel = client.channels.cache.get(config.channels.festivalBanner);
+        if (!channel) return;
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`${festival.emoji} **${festival.name} Celebration!** ${festival.emoji}`)
+            .setDescription(`
+## 🎊 Happy ${festival.name} Everyone! 🎊
+
+*May this day bring joy and success to all players!*
+
+**🎮 Special Event Today:**
+• Double XP for wins
+• Special tournament bonuses
+
+**✨ May you shine in today's matches!**
+            `)
+            .setColor(0xFF69B4)
+            .setImage(festival.banner);
+        
+        channel.send({ content: '@everyone', embeds: [embed] });
+    },
+    
+    sendDailyAnimeBanner(client, config) {
+        const channel = client.channels.cache.get(config.channels.festivalBanner);
+        if (!channel) return;
+        
+        const animeBanners = [
+            'https://i.imgur.com/anime1.gif',
+            'https://i.imgur.com/anime2.gif',
+            'https://i.imgur.com/anime3.gif'
+        ];
+        
+        const randomBanner = animeBanners[Math.floor(Math.random() * animeBanners.length)];
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🌟 **Good Morning Players!** 🌟')
+            .setDescription(`
+## 🎌 Anime Theme of the Day
+
+*Believe in yourself! Never give up!*
+
+**Today's Schedule:**
+• Check your match timings
+• Complete registrations on time
+• Stay focused and play well!
+            `)
+            .setColor(0x00BFFF)
+            .setImage(randomBanner);
+        
+        channel.send({ embeds: [embed] });
+    }
+};
