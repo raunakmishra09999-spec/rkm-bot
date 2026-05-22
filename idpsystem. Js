@@ -1,0 +1,56 @@
+const { EmbedBuilder } = require('discord.js');
+
+module.exports = {
+    async sendIdp(interaction, client, db, config) {
+        await interaction.deferReply({ ephemeral: true });
+        
+        const regChannel = this.getRegistrationChannelFromIdp(interaction.channel.id);
+        if (!regChannel) {
+            return interaction.editReply({ content: '❌ Access denied!', ephemeral: true });
+        }
+        
+        const isRegistered = await this.isUserRegistered(interaction.user.id, regChannel, db);
+        if (!isRegistered) {
+            return interaction.editReply({ content: '❌ You are not registered for this match!', ephemeral: true });
+        }
+        
+        const idpOutputChannel = client.channels.cache.get(config.channels.idpOutput);
+        if (!idpOutputChannel) {
+            return interaction.editReply({ content: '❌ IDP channel not found!', ephemeral: true });
+        }
+        
+        const idpEmbed = new EmbedBuilder()
+            .setTitle('🎫 **ID PASS - T3 Match**')
+            .setDescription(`**Password:** \`${config.idpPassword}\``)
+            .setColor(0x00FF00)
+            .addFields(
+                { name: '👤 Player', value: `<@${interaction.user.id}>`, inline: true },
+                { name: '📅 Valid For', value: 'Today\'s Match', inline: true },
+                { name: '⚠️ Note', value: 'Do not share this password with anyone!', inline: false }
+            )
+            .setFooter({ text: 'IDP valid only for current match' })
+            .setTimestamp();
+        
+        await idpOutputChannel.send({ content: `<@${interaction.user.id}>`, embeds: [idpEmbed] });
+        
+        await interaction.editReply({ content: '✅ ID Pass sent to <#1502264927212015637>!', ephemeral: true });
+    },
+    
+    async isUserRegistered(userId, regChannelId, db) {
+        return new Promise((resolve) => {
+            db.get(`SELECT * FROM registrations WHERE channelId = ? AND userId = ?`, 
+                [regChannelId, userId], 
+                (err, row) => {
+                    resolve(!!row);
+                }
+            );
+        });
+    },
+    
+    getRegistrationChannelFromIdp(idpChannelId) {
+        const mapping = {
+            '1503283979221074021': '1503283979221074020'
+        };
+        return mapping[idpChannelId] || null;
+    }
+};
