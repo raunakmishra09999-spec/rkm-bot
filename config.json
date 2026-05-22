@@ -1,0 +1,28 @@
+{
+  "token": "YOUR_BOT_TOKEN_HERE",
+  "clientId": "YOUR_BOT_CLIENT_ID",
+  "guildId": "YOUR_SERVER_ID",
+  
+  "channels": {
+    "teamFormat": "1501156569713348609",
+    "protectedCategory": "1501157421610041395",
+    "idpOutput": "1502264927212015637",
+    "matchReg": "1500902467389489354",
+    "festivalBanner": "1501909536741654598",
+    "resultSubmit": "1502270253785157712",
+    "leaderboard": "1501157176482336848",
+    "qualifier": "1501883016371241041",
+    "t2Category": "1507015812794421358"
+  },
+  
+  "roles": {
+    "t2Qualified": "T2_QUALIFY_ROLE_ID_HERE"
+  },
+  
+  "qrCodeUrl": "https://your-qr-code-image-url.com/qr.png",
+  "registrationFee": 50,
+  "prizeMoney": 50000,
+  "idpPassword": "T3@2025#IDP",
+  
+  "timezone": "Asia/Kolkata"
+}
