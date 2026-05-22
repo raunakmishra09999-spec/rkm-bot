@@ -1,0 +1,194 @@
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+
+module.exports = {
+    async sendRegistrationEmbed(client, config) {
+        const channel = client.channels.cache.get(config.channels.matchReg);
+        if (!channel) return;
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🎮 **T3 PED MATCHES REGISTRATION** 🎮')
+            .setDescription(`
+## 🔥 **REGISTRATION OPEN** 🔥
+
+### 💰 **Registration Fee:** ₹${config.registrationFee}
+### 🏆 **Prize Money:** ₹${config.prizeMoney.toLocaleString()}
+
+━━━━━━━━━━━━━━━━━━━━━
+
+### 📋 **How to Register:**
+1️⃣ Click the **RED** button below
+2️⃣ Fill the registration form
+3️⃣ Complete payment via QR code
+4️⃣ Get confirmation in DM
+
+━━━━━━━━━━━━━━━━━━━━━
+
+### ✅ **Requirements:**
+• Valid Team Name
+• 4 Player IDs
+• Working WhatsApp number
+• Valid Free Fire ID
+
+━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ **Registration closes when 25 teams join!**
+            `)
+            .setColor(0xFF0000)
+            .setFooter({ text: 'T3 Tournament • Register Now!' });
+        
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('register_match')
+                    .setLabel('📝 REGISTER NOW')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🔴')
+            );
+        
+        const messages = await channel.messages.fetch({ limit: 10 });
+        await channel.bulkDelete(messages);
+        await channel.send({ embeds: [embed], components: [row] });
+    },
+    
+    async handleMatchRegistration(interaction, client, db, config) {
+        if (interaction.customId === 'register_match') {
+            const modal = new ModalBuilder()
+                .setCustomId('match_reg_form')
+                .setTitle('T3 Match Registration');
+            
+            const teamNameInput = new TextInputBuilder()
+                .setCustomId('teamName')
+                .setLabel('Team Name')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+            
+            const playersInput = new TextInputBuilder()
+                .setCustomId('players')
+                .setLabel('Player Names (comma separated)')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+            
+            const ffIdsInput = new TextInputBuilder()
+                .setCustomId('ffIds')
+                .setLabel('Free Fire IDs (comma separated)')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+            
+            const whatsappInput = new TextInputBuilder()
+                .setCustomId('whatsapp')
+                .setLabel('WhatsApp Number')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+            
+            const row1 = new ActionRowBuilder().addComponents(teamNameInput);
+            const row2 = new ActionRowBuilder().addComponents(playersInput);
+            const row3 = new ActionRowBuilder().addComponents(ffIdsInput);
+            const row4 = new ActionRowBuilder().addComponents(whatsappInput);
+            
+            modal.addComponents(row1, row2, row3, row4);
+            await interaction.showModal(modal);
+        }
+        
+        if (interaction.customId === 'confirm_payment') {
+            await this.handlePaymentConfirmation(interaction, client, db, config);
+        }
+    },
+    
+    async processRegistrationForm(interaction, client, db, config) {
+        const teamName = interaction.fields.getTextInputValue('teamName');
+        const players = interaction.fields.getTextInputValue('players');
+        const ffIds = interaction.fields.getTextInputValue('ffIds');
+        const whatsapp = interaction.fields.getTextInputValue('whatsapp');
+        
+        const tempId = Date.now().toString();
+        db.run(`INSERT INTO temp_registrations (tempId, userId, teamName, players, ffIds, whatsapp, timestamp) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [tempId, interaction.user.id, teamName, players, ffIds, whatsapp, Date.now()]);
+        
+        const embed = new EmbedBuilder()
+            .setTitle('💳 **Complete Your Payment**')
+            .setDescription(`
+## ✅ Registration Details Saved!
+
+**Team:** ${teamName}
+**Players:** ${players}
+**FF IDs:** ${ffIds}
+**WhatsApp:** ${whatsapp}
+
+━━━━━━━━━━━━━━━━━━━━━
+
+### 💰 **Amount to Pay:** ₹${config.registrationFee}
+
+### 📱 **Scan QR Code to Pay:**
+
+*[QR Code Image Here]*
+
+### 🔑 **After Payment:**
+1️⃣ Click **"I have paid"** button below
+2️⃣ Wait for confirmation DM
+3️⃣ You're registered!
+
+━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ **Payment is mandatory for registration!**
+            `)
+            .setColor(0x00FF00)
+            .setImage(config.qrCodeUrl);
+        
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('confirm_payment')
+                    .setLabel('✅ I HAVE PAID')
+                    .setStyle(ButtonStyle.Success)
+            );
+        
+        await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    },
+    
+    async handlePaymentConfirmation(interaction, client, db, config) {
+        await interaction.deferReply({ ephemeral: true });
+        
+        db.get(`SELECT * FROM temp_registrations WHERE userId = ? ORDER BY timestamp DESC LIMIT 1`, 
+            [interaction.user.id], async (err, reg) => {
+            
+            if (!reg) {
+                return interaction.editReply({ content: '❌ No pending registration found!', ephemeral: true });
+            }
+            
+            const confirmEmbed = new EmbedBuilder()
+                .setTitle('✅ **REGISTRATION SUCCESSFUL!**')
+                .setDescription(`
+## 🎉 Welcome to T3 Tournament!
+
+**Team Name:** ${reg.teamName}
+**Players:** ${reg.players}
+**Free Fire IDs:** ${reg.ffIds}
+**WhatsApp:** ${reg.whatsapp}
+
+━━━━━━━━━━━━━━━━━━━━━
+
+### 📌 **Next Steps:**
+• Your slot has been confirmed
+• Check <#1501157421610041395> for match schedule
+• Join 15 mins before match time
+• Keep your ID ready
+
+━━━━━━━━━━━━━━━━━━━━━
+
+**Support:** Contact admin for any issues
+                `)
+                .setColor(0x00FF00);
+            
+            await interaction.user.send({ embeds: [confirmEmbed] }).catch(() => {});
+            
+            db.run(`INSERT INTO permanent_registrations (userId, teamName, players, ffIds, whatsapp, paymentStatus, timestamp) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [interaction.user.id, reg.teamName, reg.players, reg.ffIds, reg.whatsapp, 1, Date.now()]);
+            
+            db.run(`DELETE FROM temp_registrations WHERE id = ?`, [reg.id]);
+            
+            await interaction.editReply({ content: '✅ Registration confirmed! Check your DMs.', ephemeral: true });
+        });
+    }
+};
