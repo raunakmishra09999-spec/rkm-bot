@@ -1,0 +1,64 @@
+const { EmbedBuilder } = require('discord.js');
+
+module.exports = {
+    async processResult(message, client, db, config) {
+        const hasScreenshot = message.attachments.size > 0;
+        const hasMatchTime = message.content.toLowerCase().includes('time');
+        const hasMatchDate = message.content.toLowerCase().includes('date');
+        
+        if (!hasScreenshot || !hasMatchTime || !hasMatchDate) {
+            await message.react('❌');
+            await message.reply('❌ **Invalid format!** Please include:\n• Match Time\n• Match Date\n• Screenshot of result');
+            return;
+        }
+        
+        await message.react('✅');
+        
+        const lines = message.content.split('\n');
+        let teamName = '', players = '', matchTime = '', matchDate = '';
+        let isWin = false, score = 0;
+        
+        for (const line of lines) {
+            if (line.includes('Team:')) teamName = line.split(':')[1].trim();
+            if (line.includes('Time:')) matchTime = line.split(':')[1].trim();
+            if (line.includes('Date:')) matchDate = line.split(':')[1].trim();
+            if (line.includes('Result:') && line.includes('Win')) isWin = true;
+            if (line.includes('Score:')) score = parseInt(line.split(':')[1].trim()) || 0;
+        }
+        
+        const week = this.getWeekNumber(new Date());
+        
+        db.run(`INSERT INTO match_results (teamName, players, matchTime, matchDate, screenshot, isWin, score, week, timestamp) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [teamName, players, matchTime, matchDate, message.attachments.first()?.url, isWin ? 1 : 0, score, week, Date.now()]);
+        
+        db.get(`SELECT * FROM weekly_scores WHERE teamName = ? AND week = ?`, [teamName, week], (err, row) => {
+            if (row) {
+                db.run(`UPDATE weekly_scores SET wins = wins + ?, top3Count = top3Count + ?, totalScore = totalScore + ? 
+                        WHERE teamName = ? AND week = ?`,
+                    [isWin ? 1 : 0, score >= 3 ? 1 : 0, score, teamName, week]);
+            } else {
+                db.run(`INSERT INTO weekly_scores (teamName, players, week, wins, top3Count, totalScore) 
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+                    [teamName, players, week, isWin ? 1 : 0, score >= 3 ? 1 : 0, score]);
+            }
+        });
+        
+        const confirmEmbed = new EmbedBuilder()
+            .setTitle('✅ **Result Recorded!**')
+            .setDescription(`Result for **${teamName}** has been saved for analysis.`)
+            .setColor(0x00FF00)
+            .addFields(
+                { name: '🏆 Result', value: isWin ? 'WIN' : 'LOSS', inline: true },
+                { name: '📊 Score', value: score.toString(), inline: true }
+            );
+        
+        await message.reply({ embeds: [confirmEmbed] });
+    },
+    
+    getWeekNumber(date) {
+        const startDate = new Date(date.getFullYear(), 0, 1);
+        const days = Math.floor((date - startDate) / (24 * 60 * 60 * 1000));
+        return Math.ceil(days / 7);
+    }
+};
